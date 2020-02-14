@@ -555,7 +555,7 @@ Template.prototype = {
       this.generateSource();
       prepended +=
         '  var __output = "";\n' +
-        '  function __append(s) { __output += s }\n';
+        '  function __append(s) { if (s !== undefined && s !== null) __output += s }\n';
       if (opts.outputFunctionName) {
         prepended += '  var ' + opts.outputFunctionName + ' = __append;' + '\n';
       }
@@ -1004,7 +1004,10 @@ var escapeFuncStr =
  */
 
 exports.escapeXML = function (markup) {
-  return String(markup).replace(_MATCH_HTML, encode_char);
+  return markup == undefined
+    ? ''
+    : String(markup)
+      .replace(_MATCH_HTML, encode_char);
 };
 exports.escapeXML.toString = function () {
   return Function.prototype.toString.call(this) + ';\n' + escapeFuncStr;

@@ -488,6 +488,7 @@ function Template(text, opts) {
   this.source = '';
   options.client = opts.client || false;
   options.escapeFunction = opts.escape || opts.escapeFunction || utils.escapeXML;
+  options.covertNull = utils.convertNull;
   options.compileDebug = opts.compileDebug !== false;
   options.debug = !!opts.debug;
   options.filename = opts.filename;
@@ -550,12 +551,13 @@ Template.prototype = {
     var escapeFn = opts.escapeFunction;
     /** @type {FunctionConstructor} */
     var ctor;
+    var convertNull = opts.covertNull;
 
     if (!this.source) {
       this.generateSource();
       prepended +=
         '  var __output = "";\n' +
-        '  function __append(s) { if (s !== undefined && s !== null) __output += s }\n';
+        '  function __append(s) { __output += s }\n';
       if (opts.outputFunctionName) {
         prepended += '  var ' + opts.outputFunctionName + ' = __append;' + '\n';
       }
@@ -595,6 +597,7 @@ Template.prototype = {
 
     if (opts.client) {
       src = 'escapeFn = escapeFn || ' + escapeFn.toString() + ';' + '\n' + src;
+      src = 'convertNull = convertNull || ' + convertNull.toString() + ';' + '\n' + src;
       if (opts.compileDebug) {
         src = 'rethrow = rethrow || ' + rethrow.toString() + ';' + '\n' + src;
       }
@@ -630,7 +633,7 @@ Template.prototype = {
       else {
         ctor = Function;
       }
-      fn = new ctor(opts.localsName + ', escapeFn, include, rethrow', src);
+      fn = new ctor(opts.localsName + ', escapeFn, include, rethrow, convertNull', src);
     }
     catch(e) {
       // istanbul ignore else
@@ -660,7 +663,7 @@ Template.prototype = {
         }
         return includeFile(path, opts)(d);
       };
-      return fn.apply(opts.context, [data || {}, escapeFn, include, rethrow]);
+      return fn.apply(opts.context, [data || {}, escapeFn, include, rethrow, convertNull]);
     };
     if (opts.filename && typeof Object.defineProperty === 'function') {
       var filename = opts.filename;
@@ -835,7 +838,7 @@ Template.prototype = {
           break;
           // Exec and output
         case Template.modes.RAW:
-          this.source += '    ; __append(' + stripSemi(line) + ')' + '\n';
+          this.source += '    ; __append(convertNull(' + stripSemi(line) + '))' + '\n';
           break;
         case Template.modes.COMMENT:
           // Do nothing
@@ -956,6 +959,10 @@ exports.escapeRegExpChars = function (string) {
   return String(string).replace(regExpChars, '\\$&');
 };
 
+exports.convertNull = function (string) {
+  return string == undefined ? '' : string;
+};
+
 var _ENCODE_HTML_RULES = {
   '&': '&amp;',
   '<': '&lt;',
@@ -1004,10 +1011,7 @@ var escapeFuncStr =
  */
 
 exports.escapeXML = function (markup) {
-  return markup == undefined
-    ? ''
-    : String(markup)
-      .replace(_MATCH_HTML, encode_char);
+  return String(markup).replace(_MATCH_HTML, encode_char);
 };
 exports.escapeXML.toString = function () {
   return Function.prototype.toString.call(this) + ';\n' + escapeFuncStr;
